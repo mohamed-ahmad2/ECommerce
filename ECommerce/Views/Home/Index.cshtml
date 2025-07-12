@@ -1,8 +1,56 @@
 ﻿@{
-    ViewData["Title"] = "Home Page";
+    ViewData["Title"] = "Home";
 }
 
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
+<div class="container mt-4">
+    <!-- Banner -->
+    <div class="banner mb-5 position-relative text-center text-white p-5 rounded" style="background-image: url('/images/banner.jpg'); background-size: cover;">
+        <h1 class="fw-bold">Power Your Projects</h1>
+        <p>Shop high-quality electrical tools now!</p>
+        <a href="#products" class="btn btn-light mt-3">Explore Products</a>
+    </div>
+
+    <!-- Search + Filter -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <input class="form-control" type="text" id="searchInput" placeholder="Search products..." />
+        </div>
+        <div class="col-md-3">
+            <select class="form-select" id="categoryFilter">
+                <option value="">All Categories</option>
+                <option value="1">Drills</option>
+                <option value="2">Saws</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <select class="form-select" id="sortFilter">
+                <option value="">Sort by</option>
+                <option value="price-asc">Price ↑</option>
+                <option value="price-desc">Price ↓</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Product Cards -->
+    <div class="row" id="products">
+        <!-- Mock Data Loop -->
+        @for (int i = 0; i < 6; i++)
+        {
+            <div class="col-md-4 mb-4">
+                <div class="card product-card border-0 shadow-sm">
+                    <div class="product-img-wrapper position-relative">
+                        <img src="https://source.unsplash.com/300x200/?tool,drill" class="card-img-top primary-img" />
+                        <img src="https://source.unsplash.com/300x200/?tool,electric" class="card-img-top secondary-img position-absolute top-0 start-0" />
+                    </div>
+                    <div class="card-body">
+                        <h5 class="card-title">Electric Drill</h5>
+                        <p class="card-text text-muted">Category: Drills</p>
+                        <p class="card-text fw-bold text-dark">$129.99</p>
+                        <p class="text-muted">Stock: 20</p>
+                        <a href="/Products/Details/1" class="btn btn-outline-primary w-100">View</a>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
 </div>

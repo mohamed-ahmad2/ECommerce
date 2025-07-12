@@ -8,9 +8,8 @@ namespace ECommerce.Models
         [Key]
         public int Id { get; set; }
 
-        [Required]
         [StringLength(100)]
-        public string FullName { get; set; }
+        public string? FullName { get; set; }
 
         [StringLength(2048)]
         [Url(ErrorMessage = "Invalid URL.")]
@@ -20,9 +19,8 @@ namespace ECommerce.Models
         [StringLength(20)]
         public string? Phone { get; set; }
 
-        [Required]
-        [StringLength(300)]
-        public string Address { get; set; }
+        [Display(Name = "Address")]
+        public string? Address { get; set; }
 
         public bool DarkModeEnabled { get; set; }
 
@@ -31,6 +29,5 @@ namespace ECommerce.Models
 
         [ForeignKey(nameof(UserId))]
         public virtual ApplicationUser User { get; set; }
-
     }
 }

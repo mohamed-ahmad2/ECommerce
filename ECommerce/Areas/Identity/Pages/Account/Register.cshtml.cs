@@ -2,16 +2,14 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 #nullable disable
 
-using System.ComponentModel.DataAnnotations;
-using System.Text;
-using System.Text.Encodings.Web;
-using Microsoft.AspNetCore.Authentication;
+using ECommerce.Data;
 using ECommerce.Models;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.AspNetCore.WebUtilities;
+using System.ComponentModel.DataAnnotations;
 
 namespace ECommerce.Areas.Identity.Pages.Account
 {
@@ -23,13 +21,16 @@ namespace ECommerce.Areas.Identity.Pages.Account
         private readonly IUserEmailStore<ApplicationUser> _emailStore;
         private readonly ILogger<RegisterModel> _logger;
         private readonly IEmailSender _emailSender;
+        private readonly ApplicationDbContext _context;
+
 
         public RegisterModel(
             UserManager<ApplicationUser> userManager,
             IUserStore<ApplicationUser> userStore,
             SignInManager<ApplicationUser> signInManager,
             ILogger<RegisterModel> logger,
-            IEmailSender emailSender)
+            IEmailSender emailSender,
+            ApplicationDbContext context)
         {
             _userManager = userManager;
             _userStore = userStore;
@@ -37,6 +38,7 @@ namespace ECommerce.Areas.Identity.Pages.Account
             _signInManager = signInManager;
             _logger = logger;
             _emailSender = emailSender;
+            _context = context;
         }
 
         /// <summary>
@@ -64,33 +66,37 @@ namespace ECommerce.Areas.Identity.Pages.Account
         /// </summary>
         public class InputModel
         {
-            /// <summary>
-            ///     This API supports the ASP.NET Core Identity default UI infrastructure and is not intended to be used
-            ///     directly from your code. This API may change or be removed in future releases.
-            /// </summary>
+            [Required(ErrorMessage = "Full name is required")]
+            [Display(Name = "Full Name")]
+            public string FullName { get; set; }
+
             [Required]
-            [EmailAddress]
-            [Display(Name = "Email")]
+            [EmailAddress(ErrorMessage = "Invalid email")]
             public string Email { get; set; }
 
-            /// <summary>
-            ///     This API supports the ASP.NET Core Identity default UI infrastructure and is not intended to be used
-            ///     directly from your code. This API may change or be removed in future releases.
-            /// </summary>
             [Required]
-            [StringLength(100, ErrorMessage = "The {0} must be at least {2} and at max {1} characters long.", MinimumLength = 6)]
             [DataType(DataType.Password)]
-            [Display(Name = "Password")]
+            [StringLength(100, ErrorMessage = "Password must be at least {2} characters.", MinimumLength = 6)]
             public string Password { get; set; }
 
-            /// <summary>
-            ///     This API supports the ASP.NET Core Identity default UI infrastructure and is not intended to be used
-            ///     directly from your code. This API may change or be removed in future releases.
-            /// </summary>
             [DataType(DataType.Password)]
-            [Display(Name = "Confirm password")]
-            [Compare("Password", ErrorMessage = "The password and confirmation password do not match.")]
+            [Display(Name = "Confirm Password")]
+            [Compare("Password", ErrorMessage = "Passwords do not match")]
             public string ConfirmPassword { get; set; }
+
+            [Phone]
+            [Display(Name = "Phone Number")]
+            public string? Phone { get; set; }
+
+            [Display(Name = "Address")]
+            public string? Address { get; set; }
+
+            [Display(Name = "Avatar URL")]
+            [Url(ErrorMessage = "Invalid URL")]
+            public string? AvatarUrl { get; set; }
+
+            [Display(Name = "Enable Dark Mode")]
+            public bool DarkModeEnabled { get; set; }
         }
 
 
@@ -106,38 +112,41 @@ namespace ECommerce.Areas.Identity.Pages.Account
             ExternalLogins = (await _signInManager.GetExternalAuthenticationSchemesAsync()).ToList();
             if (ModelState.IsValid)
             {
-                var user = CreateUser();
+                var user = new ApplicationUser { UserName = Input.Email, Email = Input.Email };
 
-                await _userStore.SetUserNameAsync(user, Input.Email, CancellationToken.None);
-                await _emailStore.SetEmailAsync(user, Input.Email, CancellationToken.None);
                 var result = await _userManager.CreateAsync(user, Input.Password);
 
                 if (result.Succeeded)
                 {
-                    _logger.LogInformation("User created a new account with password.");
-
-                    var userId = await _userManager.GetUserIdAsync(user);
-                    var code = await _userManager.GenerateEmailConfirmationTokenAsync(user);
-                    code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
-                    var callbackUrl = Url.Page(
-                        "/Account/ConfirmEmail",
-                        pageHandler: null,
-                        values: new { area = "Identity", userId = userId, code = code, returnUrl = returnUrl },
-                        protocol: Request.Scheme);
-
-                    await _emailSender.SendEmailAsync(Input.Email, "Confirm your email",
-                        $"Please confirm your account by <a href='{HtmlEncoder.Default.Encode(callbackUrl)}'>clicking here</a>.");
-
-                    if (_userManager.Options.SignIn.RequireConfirmedAccount)
+                    
+                    var profile = new UserProfile
                     {
-                        return RedirectToPage("RegisterConfirmation", new { email = Input.Email, returnUrl = returnUrl });
-                    }
-                    else
+                        UserId = user.Id,
+                        FullName = Input.FullName,
+                        AvatarUrl = Input.AvatarUrl,
+                        Phone = Input.Phone,
+                        Address = Input.Address,
+                        DarkModeEnabled = Input.DarkModeEnabled
+                    };
+
+
+                    try
                     {
-                        await _signInManager.SignInAsync(user, isPersistent: false);
-                        return LocalRedirect(returnUrl);
+                        _context.UserProfiles.Add(profile);
+                        await _context.SaveChangesAsync();
                     }
+                    catch (Exception ex)
+                    {
+                        ModelState.AddModelError("", $"Failed to save profile: {ex.Message}");
+                        return Page();
+                    }
+
+
+                    await _userManager.AddToRoleAsync(user, "Customer");
+                    await _signInManager.SignInAsync(user, isPersistent: false);
+                    return await RedirectUserBasedOnRole(user, returnUrl);
                 }
+
                 foreach (var error in result.Errors)
                 {
                     ModelState.AddModelError(string.Empty, error.Description);
@@ -147,6 +156,20 @@ namespace ECommerce.Areas.Identity.Pages.Account
             // If we got this far, something failed, redisplay form
             return Page();
         }
+
+        private async Task<IActionResult> RedirectUserBasedOnRole(ApplicationUser user, string returnUrl)
+        {
+            if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
+                return LocalRedirect(returnUrl);
+
+            var roles = await _userManager.GetRolesAsync(user);
+            if (roles.Contains("Admin"))
+                return RedirectToAction("Index", "Dashboard", new { area = "Admin" });
+
+            return RedirectToAction("Index", "Home");
+        }
+
+
 
         private ApplicationUser CreateUser()
         {

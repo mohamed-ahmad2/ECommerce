@@ -1,14 +1,15 @@
 using ECommerce.Data; 
 using ECommerce.Models;
-using Microsoft.EntityFrameworkCore; 
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.Extensions.DependencyInjection;
+using Microsoft.EntityFrameworkCore; 
+
 
 namespace ECommerce
 {
     public class Program
     {
-        public static void Main(string[] args)
+        public static async Task Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
 
@@ -52,6 +53,19 @@ namespace ECommerce
 
 
             builder.Services.AddControllersWithViews();
+            builder.Services.AddAuthentication();
+            builder.Services.AddAuthentication()
+            .AddGoogle(options =>
+            {
+                options.ClientId = builder.Configuration["Authentication:Google:ClientId"]!;
+                options.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"]!;
+
+      
+                options.Scope.Add("profile");
+                options.ClaimActions.MapJsonKey("urn:google:picture", "picture", "url");
+            });
+
+
 
             var app = builder.Build();
 
@@ -78,7 +92,16 @@ namespace ECommerce
                 pattern: "{controller=Home}/{action=Index}/{id?}");
             app.MapRazorPages();
 
+            using (var scope = app.Services.CreateScope())
+            {
+                var services = scope.ServiceProvider;
+                await IdentitySeedData.SeedRolesAsync(services);
+                await IdentitySeedData.SeedAdminUserAsync(services);
+            }
+
             app.Run();
+
+            
         }
     }
 }
